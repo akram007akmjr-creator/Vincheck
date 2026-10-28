@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoCheck Maroc — Diagnostic VIN, Entretien & Argus Marocain</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#10b981', 600: '#059669', 900: '#064e3b' },
+            dark: { 900: '#0b0f19', 800: '#111827', 700: '#1f2937' }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0b0f19; color: #f3f4f6; }
+    .glass { background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff; color: #000; }
+      .glass { background: #fff; border: 1px solid #ddd; color: #000; }
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-16">
+
+  <!-- Navbar -->
+  <header class="border-b border-gray-800 bg-dark-900/90 sticky top-0 z-50 backdrop-blur-md no-print">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-xl font-bold">
+          <i class="fa-solid fa-car-on"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-extrabold tracking-tight text-white">AutoCheck <span class="text-emerald-400">Maroc</span></h1>
+          <p class="text-xs text-gray-400">Historique VIN • Vol • Fiabilité • Entretien & Cote MAD</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 mt-8">
+
+    <!-- Onglets et Formulaire Principal -->
+    <section class="glass rounded-2xl p-6 md:p-8 shadow-2xl no-print">
+      <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-800 pb-4">
+        <button id="tab-vin" onclick="switchMode('vin')" class="flex-1 sm:flex-none px-5 py-2.5 rounded-xl font-semibold text-sm bg-emerald-600 text-white transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-barcode"></i> Recherche par Châssis (VIN)
+        </button>
+        <button id="tab-manual" onclick="switchMode('manual')" class="flex-1 sm:flex-none px-5 py-2.5 rounded-xl font-semibold text-sm bg-gray-800 text-gray-300 hover:bg-gray-700 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-car"></i> Par Marque & Modèle
+        </button>
+        <button id="tab-compare" onclick="switchMode('compare')" class="flex-1 sm:flex-none px-5 py-2.5 rounded-xl font-semibold text-sm bg-gray-800 text-gray-300 hover:bg-gray-700 transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-scale-unbalanced-flip text-amber-400"></i> Comparateur (2 Voitures)
+        </button>
+      </div>
+
+      <form id="carForm" onsubmit="handleAnalyze(event)" class="space-y-6">
+        <!-- Bloc VIN avec Scanner Caméra -->
+        <div id="vin-section" class="space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <label class="block text-sm font-medium text-gray-300">
+              Numéro de Châssis (VIN - 17 caractères) ou Carte Grise
+            </label>
+            <label for="cameraVinInput" class="cursor-pointer inline-flex items-center gap-2 text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 rounded-lg transition">
+              <i class="fa-solid fa-camera"></i>
+              <span id="scanBtnText">Scanner Carte Grise / VIN</span>
+            </label>
+            <input
+              type="file"
+              id="cameraVinInput"
+              accept="image/*"
+              capture="environment"
+              class="hidden"
+              onchange="handleVinImageScan(event)"
+            />
+          </div>
+
+          <div class="relative">
+            <input
+              type="text"
+              id="vinInput"
+              maxlength="17"
+              oninput="validateVinLive(this.value)"
+              placeholder="17 caractères (ou scannez avec la caméra)"
+              class="w-full bg-dark-900 border border-gray-700 focus:border-emerald-500 rounded-xl px-4 py-3.5 text-white uppercase tracking-widest font-mono text-base outline-none transition"
+            />
+            <span id="vinCounter" class="absolute right-4 top-3.5 text-xs font-mono text-gray-400 bg-gray-800 px-2.5 py-1 rounded-md">
+              0 / 17
+            </span>
+          </div>
+          <p id="vinHint" class="text-xs text-gray-400">
+            Astuce : Prenez en photo la Carte Grise marocaine ou le VIN sur le pare-brise pour remplir les champs automatiquement.
+          </p>
+        </div>
+
+        <!-- Bloc Marque / Modèle / Année -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1.5">Marque</label>
+            <input type="text" id="marqueInput" placeholder="Marque" class="w-full bg-dark-900 border border-gray-700 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1.5">Modèle</label>
+            <input type="text" id="modeleInput" placeholder="Modèle" class="w-full bg-dark-900 border border-gray-700 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1.5">Motorisation & Boîte</label>
+            <input type="text" id="moteurInput" placeholder="Ex: 200d 2.0 150ch Auto" class="w-full bg-dark-900 border border-gray-700 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1.5">Année Modèle</label>
+            <input type="number" id="anneeInput" placeholder="Année" min="1995" max="2027" class="w-full bg-dark-900 border border-gray-700 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white outline-none" />
+          </div>
+        </div>
+
+        <!-- Kilométrage & Statut Douane (Spécial Maroc) -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-gray-800/80">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1.5">
+              Kilométrage Actuel (km)
+            </label>
+            <div class="relative">
+              <input type="number" id="kmInput" placeholder="Km" step="1000" min="0" required class="w-full bg-dark-900 border border-gray-700 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white font-semibold outline-none" />
+              <span class="absolute right-3.5 top-2.5 text-xs text-gray-400">km</span>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold uppercase text-gray-400 mb-1.5">
+              Origine au Maroc
+            </label>
+            <select id="statutDouaneInput" onchange="toggleDedouaneFields()" class="w-full bg-dark-900 border border-gray-700 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white outline-none">
+              <option value="WW Maroc">WW Maroc (Importateur officiel)</option>
+              <option value="Dédouanée" selected>Importée / Dédouanée (Europe / MRE)</option>
+            </select>
+          </div>
+
+          <div id="dedouaneYearBox">
+            <label class="block text-xs font-semibold uppercase text-amber-400 mb-1.5">
+              Année Dédouanement & Pays
+            </label>
+            <div class="flex gap-2">
+              <input type="number" id="anneeDedouaneInput" value="2025" min="2000" max="2027" class="w-1/2 bg-dark-900 border border-amber-500/40 rounded-xl px-3 py-2.5 text-sm text-white outline-none" placeholder="Année" />
+              <select id="paysOrigineInput" class="w-1/2 bg-dark-900 border border-amber-500/40 rounded-xl px-2.5 py-2.5 text-sm text-white outline-none">
+                <option value="Allemagne">Allemagne</option>
+                <option value="France">France</option>
+                <option value="Espagne">Espagne</option>
+                <option value="Belgique">Belgique</option>
+                <option value="Italie">Italie</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" id="submitBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-900/40 transition flex items-center justify-center gap-3 text-base">
+          <i class="fa-solid fa-magnifying-glass-chart"></i>
+          <span>Lancer le Diagnostic Complet (Historique, Vol, Entretien & Prix MAD)</span>
+        </button>
+      </form>
+    </section>
+
+    <!-- Section Comparateur 2 Voitures -->
+    <section id="compareSection" class="hidden glass rounded-2xl p-6 md:p-8 shadow-2xl mt-6 space-y-6 no-print">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 pb-4">
+        <div>
+          <h2 class="text-xl font-extrabold text-white flex items-center gap-2">
+            <i class="fa-solid fa-scale-unbalanced-flip text-amber-400"></i>
+            Duel Auto Maroc : Quelle voiture choisir ?
+          </h2>
+          <p class="text-xs text-gray-400 mt-1">Comparez la fiabilité, le coût d'entretien en MAD, les pièces et la valeur de revente au Maroc.</p>
+        </div>
+      </div>
+
+      <form onsubmit="handleCompare(event)" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Voiture A -->
+          <div class="bg-dark-900/90 p-5 rounded-xl border border-emerald-500/30 space-y-4">
+            <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-500/20 text-emerald-300">VÉHICULE A</span>
+            <div class="grid grid-cols-2 gap-3">
+              <input type="text" id="cmpA_marque" placeholder="Marque" required class="bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+              <input type="text" id="cmpA_modele" placeholder="Modèle" required class="bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+              <input type="number" id="cmpA_annee" placeholder="Année" class="bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+              <input type="number" id="cmpA_km" placeholder="Km" placeholder="Km" class="bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+            </div>
+            <select id="cmpA_statut" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none">
+              <option value="Dédouanée">Dédouanée (Import Europe)</option>
+              <option value="WW Maroc">WW Maroc</option>
+            </select>
+          </div>
+
+          <!-- Voiture B -->
+          <div class="bg-dark-900/90 p-5 rounded-xl border border-blue-500/30 space-y-4">
+            <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-blue-500/20 text-blue-300">VÉHICULE B</span>
+            <div class="grid grid-cols-2 gap-3">
+              <input type="text" id="cmpB_marque" placeholder="Marque" required class="bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+              <input type="text" id="cmpB_modele" placeholder="Modèle" required class="bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+              <input type="number" id="cmpB_annee" placeholder="Année" class="bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+              <input type="number" id="cmpB_km" placeholder="Km" placeholder="Km" class="bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none" />
+            </div>
+            <select id="cmpB_statut" class="w-full bg-dark-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white outline-none">
+              <option value="Dédouanée">Dédouanée (Import Europe)</option>
+              <option value="WW Maroc">WW Maroc</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 font-extrabold py-3.5 rounded-xl transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-bolt"></i> Lancer le Duel Comparatif (Coûts, Fiabilité & Revente)
+        </button>
+      </form>
+
+      <!-- Résultat du Duel -->
+      <div id="compareResultBox" class="hidden space-y-6 pt-6 border-t border-gray-800">
+        <div class="bg-emerald-950/30 border border-emerald-500/40 p-5 rounded-2xl">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <h3 id="cmp-title" class="text-xl font-extrabold text-white"></h3>
+            <span id="cmp-winner" class="px-3.5 py-1 rounded-full text-xs font-extrabold bg-emerald-500 text-gray-950"></span>
+          </div>
+          <p id="cmp-verdict" class="text-sm text-gray-200 leading-relaxed"></p>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-gray-800 text-xs uppercase text-gray-400">
+                <th class="py-3 px-4">Critère au Maroc</th>
+                <th id="th-carA" class="py-3 px-4 text-emerald-400">Véhicule A</th>
+                <th id="th-carB" class="py-3 px-4 text-blue-400">Véhicule B</th>
+              </tr>
+            </thead>
+            <tbody id="cmp-tbody" class="divide-y divide-gray-800/70"></tbody>
+          </table>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-dark-900 p-4 rounded-xl border border-emerald-500/30">
+            <h4 class="text-xs font-bold uppercase text-emerald-400 mb-1">Choisissez le Véhicule A si :</h4>
+            <p id="cmp-buyA" class="text-sm text-gray-300"></p>
+          </div>
+          <div class="bg-dark-900 p-4 rounded-xl border border-blue-500/30">
+            <h4 class="text-xs font-bold uppercase text-blue-400 mb-1">Choisissez le Véhicule B si :</h4>
+            <p id="cmp-buyB" class="text-sm text-gray-300"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Loader -->
+    <div id="loadingBox" class="hidden my-12 text-center space-y-4">
+      <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-2xl animate-pulse">
+        <i class="fa-solid fa-spinner fa-spin"></i>
+      </div>
+      <h3 class="text-lg font-bold text-white">Analyse du véhicule en cours...</h3>
+      <p class="text-sm text-gray-400 max-w-md mx-auto">
+        Vérification du châssis (WMI/VIN/Vincario), calcul du plan d'entretien selon le kilométrage et estimation de la cote sur le marché marocain.
+      </p>
+    </div>
+
+    <!-- Résultats du Rapport -->
+    <section id="reportSection" class="hidden mt-8 space-y-6">
+
+      <!-- Barre d'en-tête du véhicule -->
+      <div class="glass rounded-2xl p-6 border-l-4 border-l-emerald-500 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <span id="res-statut-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30"></span>
+            <span id="res-pays-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-gray-800 text-gray-300"></span>
+            <span id="res-km-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300"></span>
+          </div>
+          <h2 id="res-title" class="text-2xl md:text-3xl font-extrabold text-white"></h2>
+          <p id="res-subtitle" class="text-sm text-gray-400 mt-1"></p>
+        </div>
+        <div class="flex flex-wrap gap-2 no-print">
+          <button onclick="shareOnWhatsApp()" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-bold text-white shadow-lg shadow-emerald-900/30 transition flex items-center gap-2">
+            <i class="fa-brands fa-whatsapp text-lg"></i> Partager sur WhatsApp
+          </button>
+          <button onclick="window.print()" class="px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-sm font-semibold text-gray-200 border border-gray-700 transition">
+            <i class="fa-solid fa-file-pdf mr-1.5 text-red-400"></i> PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Grille Cote Maroc & Check Vol/Dédouanement -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- 1. Check "Machfoura" / Sécurité VIN & Dédouanement -->
+        <div class="glass rounded-2xl p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+              Sécurité Châssis, Vol & Dédouanement
+            </h3>
+            <span id="res-vol-badge" class="px-3 py-1 rounded-lg text-xs font-bold"></span>
+          </div>
+          <p id="res-analyse-douane" class="text-sm text-gray-300 leading-relaxed bg-dark-900/70 p-4 rounded-xl border border-gray-800"></p>
+          <div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">
+              Points de contrôle obligatoires avant d'acheter :
+            </h4>
+            <ul id="res-verif-list" class="space-y-2 text-sm text-gray-300"></ul>
+          </div>
+        </div>
+
+        <!-- 2. Estimation du Prix au Maroc (Argus MAD) -->
+        <div class="glass rounded-2xl p-6 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-tags text-amber-400"></i>
+                Estimation du Prix au Maroc (MAD)
+              </h3>
+              <span id="res-liquidite" class="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300"></span>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 my-4">
+              <div class="bg-dark-900 p-3.5 rounded-xl border border-gray-800 text-center">
+                <span class="block text-xs text-gray-400">Prix Bas (Urgent)</span>
+                <strong id="res-prix-min" class="text-sm sm:text-base font-bold text-gray-200 mt-1 block"></strong>
+              </div>
+              <div class="bg-emerald-950/40 p-3.5 rounded-xl border border-emerald-500/50 text-center">
+                <span class="block text-xs text-emerald-300 font-semibold">Prix Juste Marché</span>
+                <strong id="res-prix-moyen" class="text-base sm:text-lg font-extrabold text-emerald-400 mt-1 block"></strong>
+              </div>
+              <div class="bg-dark-900 p-3.5 rounded-xl border border-gray-800 text-center">
+                <span class="block text-xs text-gray-400">État Neuf / Full</span>
+                <strong id="res-prix-max" class="text-sm sm:text-base font-bold text-gray-200 mt-1 block"></strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+            <h4 class="text-xs font-bold uppercase text-amber-300 mb-1">
+              <i class="fa-solid fa-scale-balanced mr-1"></i> Impact WW Maroc vs Dédouanée & Kilométrage
+            </h4>
+            <p id="res-diff-douane" class="text-xs text-gray-300 leading-relaxed"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Plan d'Entretien selon le Kilométrage + Prix en MAD -->
+      <div class="glass rounded-2xl p-6 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-4">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-screwdriver-wrench text-emerald-400"></i>
+              Entretien Recommandé à <span id="res-km-title" class="text-emerald-400"></span>
+            </h3>
+            <p id="res-entretien-resume" class="text-xs text-gray-400 mt-1"></p>
+          </div>
+          <div class="bg-dark-900 px-4 py-2.5 rounded-xl border border-gray-700 text-right">
+            <span class="block text-[11px] text-gray-400 uppercase">Budget Remise à Niveau Estimé</span>
+            <strong id="res-budget-total" class="text-base font-extrabold text-amber-400"></strong>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-gray-800 text-xs uppercase text-gray-400">
+                <th class="py-3 px-4">Opération / Pièce</th>
+                <th class="py-3 px-4">Urgence</th>
+                <th class="py-3 px-4">Prix Pièces (Maroc)</th>
+                <th class="py-3 px-4">Main d'œuvre</th>
+                <th class="py-3 px-4 text-right">Total Estimé</th>
+              </tr>
+            </thead>
+            <tbody id="res-entretien-tbody" class="divide-y divide-gray-800/70 text-sm"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 4. Fiabilité, Maladies Connues & Défauts -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="glass rounded-2xl p-6 space-y-5">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-gauge-high text-emerald-400"></i>
+            Indice de Fiabilité
+          </h3>
+
+          <div class="flex items-center justify-center py-4">
+            <div class="text-center">
+              <span id="res-note-globale" class="text-5xl font-extrabold text-emerald-400"></span>
+              <span class="text-xl text-gray-500 font-bold">/ 10</span>
+              <p class="text-xs text-gray-400 mt-1">Score de fiabilité global</p>
+            </div>
+          </div>
+
+          <div class="space-y-3 text-sm">
+            <div>
+              <div class="flex justify-between mb-1"><span>Fiabilité Moteur</span><strong id="res-note-moteur"></strong></div>
+              <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden"><div id="bar-moteur" class="bg-emerald-500 h-full"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between mb-1"><span>Boîte & Embrayage</span><strong id="res-note-boite"></strong></div>
+              <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden"><div id="bar-boite" class="bg-blue-500 h-full"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between mb-1"><span>Électronique & Capteurs</span><strong id="res-note-elec"></strong></div>
+              <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden"><div id="bar-elec" class="bg-amber-500 h-full"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass rounded-2xl p-6 lg:col-span-2 space-y-4">
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+            Défauts Fréquents & Maladies Connues du Modèle
+          </h3>
+          <div id="res-defauts-list" class="space-y-3"></div>
+        </div>
+      </div>
+
+      <!-- 5. Histoire du Modèle & Avis des Propriétaires au Maroc -->
+      <div class="glass rounded-2xl p-6 space-y-5">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-book-open text-emerald-400"></i>
+          Histoire du Modèle & Avis au Maroc
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-dark-900 p-4 rounded-xl border border-gray-800">
+            <h4 class="text-xs font-bold uppercase text-emerald-400 mb-2">Histoire & Génération</h4>
+            <p id="res-histoire" class="text-sm text-gray-300 leading-relaxed"></p>
+          </div>
+          <div class="bg-dark-900 p-4 rounded-xl border border-gray-800">
+            <h4 class="text-xs font-bold uppercase text-amber-400 mb-2">Avis des Kessaba & Mécaniciens au Maroc</h4>
+            <p id="res-avis-maroc" class="text-sm text-gray-300 leading-relaxed"></p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-emerald-950/20 border border-emerald-500/20 p-4 rounded-xl">
+            <h4 class="text-xs font-bold uppercase text-emerald-400 mb-2"><i class="fa-solid fa-thumbs-up mr-1"></i> Points Forts</h4>
+            <ul id="res-points-forts" class="space-y-1.5 text-sm text-gray-300"></ul>
+          </div>
+          <div class="bg-red-950/20 border border-red-500/20 p-4 rounded-xl">
+            <h4 class="text-xs font-bold uppercase text-red-400 mb-2"><i class="fa-solid fa-thumbs-down mr-1"></i> Points Faibles</h4>
+            <ul id="res-points-faibles" class="space-y-1.5 text-sm text-gray-300"></ul>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    let currentSearchMode = 'vin';
+    let lastGeneratedReport = null;
+
+    async function callApi(path, body) {
+      let res;
+      try {
+        res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      } catch (e) {
+        throw new Error("Connexion impossible : vérifiez votre internet (réseau coupé ou serveur injoignable).");
+      }
+      const text = await res.text();
+      let json = null;
+      try { json = JSON.parse(text); } catch (e) {}
+
+      if (!json) {
+        throw new Error("Le serveur (dossier functions/api) n'est pas déployé sur ce site (code " + res.status + "). Le dossier « functions » doit être à la racine du projet et publié via GitHub : le glisser-déposer l'ignore.");
+      }
+      if (!res.ok || json.error) {
+        const msg = String(json.error || ("Erreur " + res.status));
+        if (/GEMINI_API_KEY/i.test(msg)) {
+          throw new Error("Clé GEMINI_API_KEY manquante. Ajoutez-la dans Cloudflare Pages > Settings > Environment Variables, puis faites Retry deployment.");
+        }
+        if (/API key not valid|API_KEY_INVALID|\(400\)/i.test(msg)) {
+          throw new Error("Clé Gemini invalide. Vérifiez GEMINI_API_KEY dans Cloudflare (sans espace ni guillemets) et redéployez.");
+        }
+        if (/\(403\)|PERMISSION_DENIED|leaked/i.test(msg)) {
+          throw new Error("Clé Gemini refusée ou bloquée par Google. Créez une nouvelle clé sur Google AI Studio et remplacez-la dans Cloudflare.");
+        }
+        if (/\(429\)|quota|RESOURCE_EXHAUSTED/i.test(msg)) {
+          throw new Error("Limite d'utilisation Gemini atteinte. Attendez une minute ou ajoutez une seconde clé GEMINI_API_KEY1.");
+        }
+        throw new Error("Erreur du serveur : " + msg.slice(0, 200));
+      }
+      return json;
+    }
+
+    function switchMode(mode) {
+      currentSearchMode = mode;
+      const tabVin = document.getElementById('tab-vin');
+      const tabManual = document.getElementById('tab-manual');
+      const tabCompare = document.getElementById('tab-compare');
+      const vinSection = document.getElementById('vin-section');
+      const carForm = document.getElementById('carForm');
+      const compareSection = document.getElementById('compareSection');
+
+      const activeClass = "flex-1 sm:flex-none px-5 py-2.5 rounded-xl font-semibold text-sm bg-emerald-600 text-white transition flex items-center justify-center gap-2";
+      const inactiveClass = "flex-1 sm:flex-none px-5 py-2.5 rounded-xl font-semibold text-sm bg-gray-800 text-gray-300 hover:bg-gray-700 transition flex items-center justify-center gap-2";
+
+      tabVin.className = mode === 'vin' ? activeClass : inactiveClass;
+      tabManual.className = mode === 'manual' ? activeClass : inactiveClass;
+      if (tabCompare) tabCompare.className = mode === 'compare' ? activeClass : inactiveClass;
+
+      if (mode === 'compare') {
+        carForm.classList.add('hidden');
+        compareSection.classList.remove('hidden');
+        document.getElementById('reportSection').classList.add('hidden');
+      } else {
+        carForm.classList.remove('hidden');
+        if (compareSection) compareSection.classList.add('hidden');
+        if (mode === 'vin') vinSection.classList.remove('hidden');
+        else vinSection.classList.add('hidden');
+      }
+    }
+
+    function toggleDedouaneFields() {
+      const statut = document.getElementById('statutDouaneInput').value;
+      const box = document.getElementById('dedouaneYearBox');
+      box.style.opacity = statut === 'Dédouanée' ? '1' : '0.4';
+    }
+
+    function validateVinLive(val) {
+      const clean = val.toUpperCase().replace(/[IOQ\s]/g, '');
+      document.getElementById('vinInput').value = clean;
+      document.getElementById('vinCounter').textContent = `${clean.length} / 17`;
+
+      const wmiMap = {
+        W1K: 'Mercedes-Benz', WDD: 'Mercedes-Benz', WVW: 'Volkswagen',
+        WAU: 'Audi', WBA: 'BMW', VF1: 'Renault', VF3: 'Peugeot',
+        VR3: 'Peugeot', VF7: 'Citroën', UU1: 'Dacia', VSS: 'SEAT / Cupra'
+      };
+      const wmi = clean.substring(0, 3);
+      if (wmiMap[wmi] && !document.getElementById('marqueInput').value) {
+        document.getElementById('marqueInput').value = wmiMap[wmi];
+        document.getElementById('vinHint').innerHTML = `<span class="text-emerald-400 font-semibold"><i class="fa-solid fa-check-circle"></i> Constructeur détecté via WMI (${wmi}) : ${wmiMap[wmi]}</span>`;
+      }
+    }
+
+    function compressImageToBase64(file, maxWidth = 1280, quality = 0.8) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const dataUrl = canvas.toDataURL('image/jpeg', quality);
+            const base64Clean = dataUrl.split(',')[1];
+            resolve(base64Clean);
+          };
+          img.onerror = reject;
+          img.src = event.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function handleVinImageScan(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const scanBtnText = document.getElementById('scanBtnText');
+      const vinHint = document.getElementById('vinHint');
+      const originalText = scanBtnText.textContent;
+
+      scanBtnText.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Lecture OCR...`;
+      vinHint.innerHTML = `<span class="text-amber-400"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Extraction du numéro de châssis et des infos de la carte grise en cours...</span>`;
+
+      try {
+        const base64Image = await compressImageToBase64(file);
+
+        const result = await callApi('/api/scan-vin', { imageBase64: base64Image, mimeType: 'image/jpeg' });
+        const d = result.data;
+
+        if (d.vin) {
+          const cleanVin = d.vin.toUpperCase().replace(/[IOQ\s-]/g, '');
+          document.getElementById('vinInput').value = cleanVin;
+          validateVinLive(cleanVin);
+        }
+        if (d.marque) document.getElementById('marqueInput').value = d.marque;
+        if (d.modele) document.getElementById('modeleInput').value = d.modele;
+        if (d.motorisation) document.getElementById('moteurInput').value = d.motorisation;
+        if (d.annee_modele) document.getElementById('anneeInput').value = d.annee_modele;
+
+        if (d.statut_douane === 'Dédouanée' || d.statut_douane === 'WW Maroc') {
+          document.getElementById('statutDouaneInput').value = d.statut_douane;
+          toggleDedouaneFields();
+          if (d.annee_dedouanement) {
+            document.getElementById('anneeDedouaneInput').value = d.annee_dedouanement;
+          }
+        }
+
+        vinHint.innerHTML = `<span class="text-emerald-400 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i> Scan réussi ! VIN : ${d.vin || 'Détecté'} (${d.marque || ''} ${d.modele || ''})</span>`;
+      } catch (err) {
+        vinHint.innerHTML = `<span class="text-red-400"><i class="fa-solid fa-triangle-exclamation mr-1"></i> ${err.message}</span>`;
+      } finally {
+        scanBtnText.textContent = originalText;
+        event.target.value = '';
+      }
+    }
+
+    async function handleAnalyze(e) {
+      e.preventDefault();
+      const vin = document.getElementById('vinInput').value.trim();
+      const marque = document.getElementById('marqueInput').value.trim();
+      const modele = document.getElementById('modeleInput').value.trim();
+
+      if (currentSearchMode === 'vin' && vin.length !== 17 && (!marque || !modele)) {
+        alert("Veuillez entrer un Numéro de Châssis (VIN) valide de 17 caractères, ou basculez sur la recherche par Marque & Modèle.");
+        return;
+      }
+
+      const payload = {
+        searchMode: currentSearchMode,
+        vin,
+        marque,
+        modele,
+        motorisation: document.getElementById('moteurInput').value.trim(),
+        annee: document.getElementById('anneeInput').value,
+        kilometrage: document.getElementById('kmInput').value,
+        statutDouane: document.getElementById('statutDouaneInput').value,
+        anneeDedouanement: document.getElementById('anneeDedouaneInput').value,
+        paysOrigine: document.getElementById('paysOrigineInput').value
+      };
+
+      document.getElementById('loadingBox').classList.remove('hidden');
+      document.getElementById('reportSection').classList.add('hidden');
+
+      try {
+        const result = await callApi('/api/analyze', payload);
+        renderReport(result.data);
+      } catch (err) {
+        console.error(err);
+        alert("Impossible de générer le rapport.\n\n" + err.message);
+      } finally {
+        document.getElementById('loadingBox').classList.add('hidden');
+      }
+    }
+
+    function renderReport(data) {
+      lastGeneratedReport = data;
+      document.getElementById('reportSection').classList.remove('hidden');
+
+      document.getElementById('res-title').textContent = `${data.identite.marque} ${data.identite.modele} (${data.identite.generation || data.identite.annee_modele})`;
+      document.getElementById('res-subtitle').textContent = `Motorisation : ${data.identite.motorisation_probable} • Année : ${data.identite.annee_modele}`;
+      document.getElementById('res-statut-badge').textContent = data.identite.statut_douane;
+      document.getElementById('res-pays-badge').innerHTML = `<i class="fa-solid fa-globe mr-1"></i> Origine : ${data.identite.pays_fabrication_vin}`;
+      document.getElementById('res-km-badge').innerHTML = `<i class="fa-solid fa-road mr-1"></i> ${Number(data.entretien_kilometrage.kilometrage_analyse).toLocaleString()} km`;
+
+      const volBadge = document.getElementById('res-vol-badge');
+      volBadge.textContent = `Risque Vol/Trafic : ${data.securite_et_origine.score_risque_vol}`;
+      volBadge.className = data.securite_et_origine.score_risque_vol.includes('Faible')
+        ? "px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+        : "px-3 py-1 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30";
+
+      document.getElementById('res-analyse-douane').textContent = data.securite_et_origine.analyse_vin_et_douane;
+      document.getElementById('res-verif-list').innerHTML = data.securite_et_origine.points_verification_physique
+        .map(p => `<li class="flex items-start gap-2"><i class="fa-solid fa-circle-check text-emerald-400 mt-1"></i><span>${p}</span></li>`)
+        .join('');
+
+      document.getElementById('res-prix-min').textContent = data.cote_maroc.prix_min_mad;
+      document.getElementById('res-prix-moyen').textContent = data.cote_maroc.prix_moyen_mad;
+      document.getElementById('res-prix-max').textContent = data.cote_maroc.prix_max_mad;
+      document.getElementById('res-liquidite').textContent = `Revente : ${data.cote_maroc.liquidite_revente}`;
+      document.getElementById('res-diff-douane').textContent = data.cote_maroc.difference_ww_vs_dedouanee;
+
+      document.getElementById('res-km-title').textContent = `${Number(data.entretien_kilometrage.kilometrage_analyse).toLocaleString()} km`;
+      document.getElementById('res-entretien-resume').textContent = data.entretien_kilometrage.resume_entretien;
+      document.getElementById('res-budget-total').textContent = data.entretien_kilometrage.budget_total_remise_a_niveau_mad;
+
+      document.getElementById('res-entretien-tbody').innerHTML = data.entretien_kilometrage.operations
+        .map(op => {
+          const badgeColor = op.urgence.includes('Immédiate')
+            ? 'bg-red-500/20 text-red-300 border-red-500/30'
+            : 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+          return `
+            <tr class="hover:bg-gray-800/40">
+              <td class="py-3.5 px-4 font-semibold text-white">${op.operation}</td>
+              <td class="py-3.5 px-4"><span class="px-2.5 py-1 rounded-md text-xs font-bold border ${badgeColor}">${op.urgence}</span></td>
+              <td class="py-3.5 px-4 text-gray-300">${op.prix_pieces_mad}</td>
+              <td class="py-3.5 px-4 text-gray-300">${op.main_oeuvre_mad}</td>
+              <td class="py-3.5 px-4 text-right font-bold text-emerald-400">${op.total_estime_mad}</td>
+            </tr>
+          `;
+        }).join('');
+
+      document.getElementById('res-note-globale').textContent = data.fiabilite.note_globale;
+      document.getElementById('res-note-moteur').textContent = `${data.fiabilite.note_moteur}/10`;
+      document.getElementById('res-note-boite').textContent = `${data.fiabilite.note_boite}/10`;
+      document.getElementById('res-note-elec').textContent = `${data.fiabilite.note_electronique}/10`;
+
+      document.getElementById('bar-moteur').style.width = `${data.fiabilite.note_moteur * 10}%`;
+      document.getElementById('bar-boite').style.width = `${data.fiabilite.note_boite * 10}%`;
+      document.getElementById('bar-elec').style.width = `${data.fiabilite.note_electronique * 10}%`;
+
+      document.getElementById('res-defauts-list').innerHTML = data.fiabilite.defauts_connus
+        .map(d => `
+          <div class="bg-dark-900 p-4 rounded-xl border border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <strong class="text-white text-sm">${d.probleme}</strong>
+                <span class="text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold">Gravité : ${d.gravite}</span>
+              </div>
+              <p class="text-xs text-gray-400 mt-1">Symptôme : ${d.symptome}</p>
+            </div>
+            <div class="text-right shrink-0">
+              <span class="block text-[10px] uppercase text-gray-500">Coût Réparation</span>
+              <strong class="text-xs font-bold text-red-400">${d.cout_reparation_mad}</strong>
+            </div>
+          </div>
+        `).join('');
+
+      document.getElementById('res-histoire').textContent = data.histoire_et_avis.histoire_modele;
+      document.getElementById('res-avis-maroc').textContent = data.histoire_et_avis.avis_maroc;
+      document.getElementById('res-points-forts').innerHTML = data.histoire_et_avis.points_forts
+        .map(p => `<li>• ${p}</li>`).join('');
+      document.getElementById('res-points-faibles').innerHTML = data.histoire_et_avis.points_faibles
+        .map(p => `<li>• ${p}</li>`).join('');
+
+      document.getElementById('reportSection').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function shareOnWhatsApp() {
+      if (!lastGeneratedReport) return;
+      const d = lastGeneratedReport;
+      const vinVal = document.getElementById('vinInput').value || "Non renseigné";
+
+      const entretiensUrgents = (d.entretien_kilometrage?.operations || [])
+        .slice(0, 3)
+        .map(op => `  ▫️ ${op.operation} (${op.total_estime_mad})`)
+        .join('\n');
+
+      const message =
+`🚗 *RAPPORT AUTOCHECK MAROC* 🇲🇦
+━━━━━━━━━━━━━━━━━━━━
+📌 *Véhicule :* ${d.identite.marque} ${d.identite.modele} (${d.identite.annee_modele})
+🔧 *Moteur :* ${d.identite.motorisation_probable}
+🔢 *VIN :* ${vinVal}
+🛣️ *Kilométrage :* ${Number(d.entretien_kilometrage.kilometrage_analyse).toLocaleString()} km
+🌍 *Statut :* ${d.identite.statut_douane}
+
+🛡️ *Sécurité & Dédouanement :*
+• Risque Vol/Trafic : *${d.securite_et_origine.score_risque_vol}*
+
+⭐ *Fiabilité Globale :* *${d.fiabilite.note_globale}/10*
+• Moteur : ${d.fiabilite.note_moteur}/10 | Boîte : ${d.fiabilite.note_boite}/10
+
+🛠️ *Entretien à prévoir (${Number(d.entretien_kilometrage.kilometrage_analyse).toLocaleString()} km) :*
+${entretiensUrgents}
+💰 *Budget entretien estimé :* *${d.entretien_kilometrage.budget_total_remise_a_niveau_mad}*
+
+🏷️ *Cote & Prix au Maroc :*
+• Prix Moyen Marché : *${d.cote_maroc.prix_moyen_mad}*
+• Fourchette : ${d.cote_maroc.prix_min_mad} - ${d.cote_maroc.prix_max_mad}
+• Revente : ${d.cote_maroc.liquidite_revente}`;
+
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
+    }
+
+    async function handleCompare(e) {
+      e.preventDefault();
+      const carA = {
+        marque: document.getElementById('cmpA_marque').value,
+        modele: document.getElementById('cmpA_modele').value,
+        annee: document.getElementById('cmpA_annee').value,
+        km: document.getElementById('cmpA_km').value,
+        statut: document.getElementById('cmpA_statut').value
+      };
+      const carB = {
+        marque: document.getElementById('cmpB_marque').value,
+        modele: document.getElementById('cmpB_modele').value,
+        annee: document.getElementById('cmpB_annee').value,
+        km: document.getElementById('cmpB_km').value,
+        statut: document.getElementById('cmpB_statut').value
+      };
+
+      document.getElementById('loadingBox').classList.remove('hidden');
+
+      try {
+        const json = await callApi('/api/compare', { carA, carB });
+        renderComparison(json.data, `${carA.marque} ${carA.modele}`, `${carB.marque} ${carB.modele}`);
+      } catch (err) {
+        console.error(err);
+        alert("Impossible de générer le comparatif.\n\n" + err.message);
+      } finally {
+        document.getElementById('loadingBox').classList.add('hidden');
+      }
+    }
+
+    function renderComparison(data, labelA, labelB) {
+      document.getElementById('compareResultBox').classList.remove('hidden');
+      document.getElementById('cmp-title').textContent = data.titre_duel;
+      document.getElementById('cmp-winner').innerHTML = `<i class="fa-solid fa-trophy mr-1"></i> Choix Gagnant : ${data.gagnant_global}`;
+      document.getElementById('cmp-verdict').textContent = data.verdict_maroc;
+      document.getElementById('th-carA').textContent = labelA;
+      document.getElementById('th-carB').textContent = labelB;
+
+      const labels = {
+        prix_marche_mad: "Prix Moyen au Maroc",
+        score_fiabilite: "Note de Fiabilité",
+        cout_entretien_annuel_mad: "Budget Entretien Annuel",
+        disponibilite_pieces_maroc: "Disponibilité Pièces (Maroc)",
+        consommation_moyenne: "Consommation Réelle",
+        vignette_annuelle_mad: "Vignette (TSAVA)",
+        facilite_revente_maroc: "Liquidité & Revente au Souk"
+      };
+
+      const rowsHtml = Object.entries(data.comparaison).map(([key, val]) => {
+        const winA = val.avantage === 'A' ? 'font-bold text-emerald-400' : 'text-gray-300';
+        const winB = val.avantage === 'B' ? 'font-bold text-blue-400' : 'text-gray-300';
+        return `
+          <tr class="hover:bg-gray-800/40">
+            <td class="py-3 px-4 font-semibold text-gray-300">${labels[key] || key}</td>
+            <td class="py-3 px-4 ${winA}">${val.carA} ${val.avantage === 'A' ? '✓' : ''}</td>
+            <td class="py-3 px-4 ${winB}">${val.carB} ${val.avantage === 'B' ? '✓' : ''}</td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('cmp-tbody').innerHTML = rowsHtml;
+      document.getElementById('cmp-buyA').textContent = data.conseil_achat.achetez_carA_si;
+      document.getElementById('cmp-buyB').textContent = data.conseil_achat.achetez_carB_si;
+    }
+
+  </script>
+</body>
+</html>
